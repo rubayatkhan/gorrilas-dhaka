@@ -1,0 +1,23 @@
+{
+  "name": "gorrilas-dhaka",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "imagegen:dry": "sh -c 'CODEX_HOME=${CODEX_HOME:-$HOME/.codex}; python3 \"$CODEX_HOME/skills/imagegen/scripts/image_gen.py\" generate-batch --input prompts/imagegen-batch.jsonl --out-dir output/imagegen --dry-run'",
+    "imagegen:batch": "sh -c 'CODEX_HOME=${CODEX_HOME:-$HOME/.codex}; python3 \"$CODEX_HOME/skills/imagegen/scripts/image_gen.py\" generate-batch --input prompts/imagegen-batch.jsonl --out-dir output/imagegen'",
+    "imagegen:batch:uv": "sh -c 'CODEX_HOME=${CODEX_HOME:-$HOME/.codex}; uv run --with openai python3 \"$CODEX_HOME/skills/imagegen/scripts/image_gen.py\" generate-batch --input prompts/imagegen-batch.jsonl --out-dir output/imagegen'"
+  },
+  "dependencies": {
+    "phaser": "^3.90.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.1"
+  }
+}

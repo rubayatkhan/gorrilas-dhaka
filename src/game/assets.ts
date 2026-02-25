@@ -1,3 +1,5 @@
+const BASE = import.meta.env.BASE_URL;
+
 export const ASSET_KEYS = {
   SKYLINE: 'generated-skyline',
   BUILDINGS: 'generated-buildings',
@@ -9,13 +11,13 @@ export const ASSET_KEYS = {
 } as const;
 
 export const ASSET_PATHS = {
-  SKYLINE: '/assets/generated/skyline.png',
-  BUILDINGS: '/assets/generated/buildings.png',
-  CHARACTERS: '/assets/generated/characters.png',
-  PLAYER_ONE: '/assets/generated/player1-sprite.png',
-  PLAYER_TWO: '/assets/generated/player2-sprite.png',
-  EXPLOSION: '/assets/generated/explosion-sheet.png',
-  HUD_PANEL: '/assets/generated/hud-panel.png'
+  SKYLINE: `${BASE}assets/generated/skyline.png`,
+  BUILDINGS: `${BASE}assets/generated/buildings.png`,
+  CHARACTERS: `${BASE}assets/generated/characters.png`,
+  PLAYER_ONE: `${BASE}assets/generated/player1-sprite.png`,
+  PLAYER_TWO: `${BASE}assets/generated/player2-sprite.png`,
+  EXPLOSION: `${BASE}assets/generated/explosion-sheet.png`,
+  HUD_PANEL: `${BASE}assets/generated/hud-panel.png`
 } as const;
 
 export const ART_USAGE = {

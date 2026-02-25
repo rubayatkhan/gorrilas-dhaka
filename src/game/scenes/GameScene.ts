@@ -29,6 +29,7 @@ export class GameScene extends Phaser.Scene {
   private projectile!: ProjectileSystem;
   private turnSystem!: TurnSystem;
   private windSystem!: WindSystem;
+  private aimGuide!: Phaser.GameObjects.Graphics;
 
   private players: PlayerActor[] = [];
 
@@ -59,6 +60,7 @@ export class GameScene extends Phaser.Scene {
     this.windSystem = new WindSystem();
 
     this.createInput();
+    this.aimGuide = this.add.graphics().setDepth(12);
     this.startRound(0);
   }
 
@@ -73,6 +75,11 @@ export class GameScene extends Phaser.Scene {
     if (this.projectile.isInFlight()) {
       this.projectile.update(dt, this.windSystem.getWind(), GRAVITY);
       this.resolveProjectileCollisions();
+      this.aimGuide.clear();
+    } else if (!this.roundLocked) {
+      this.drawAimGuide();
+    } else {
+      this.aimGuide.clear();
     }
   }
 
@@ -91,6 +98,7 @@ export class GameScene extends Phaser.Scene {
   private startRound(startingPlayer: PlayerIndex): void {
     this.roundLocked = true;
     this.projectile.clear();
+    this.aimGuide.clear();
 
     this.terrain.generate();
     this.setupPlayers();
@@ -179,6 +187,7 @@ export class GameScene extends Phaser.Scene {
 
     player.playThrowAnimation();
     this.projectile.launch(player.getLaunchPoint(), aim.angle, aim.power, player.facing);
+    this.aimGuide.clear();
     this.statusMessage = 'Banana in flight...';
     this.emitHud();
   }
@@ -342,6 +351,93 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.cameras.main.shake(100, 0.0025);
+  }
+
+  private drawAimGuide(): void {
+    this.aimGuide.clear();
+
+    const playerIndex = this.turnSystem.getCurrentPlayer();
+    const player = this.getPlayer(playerIndex);
+    const aim = this.getAimState(playerIndex);
+    const launchPoint = player.getLaunchPoint();
+    const facing = player.facing;
+
+    const angleRadians = Phaser.Math.DegToRad(aim.angle);
+    const velocity = new Phaser.Math.Vector2(Math.cos(angleRadians) * aim.power * facing, -Math.sin(angleRadians) * aim.power);
+    const position = launchPoint.clone();
+
+    const wind = this.windSystem.getWind();
+    const simStep = 0.06;
+    const simSteps = 16;
+    const samplePoints: Phaser.Math.Vector2[] = [position.clone()];
+
+    for (let i = 0; i < simSteps; i += 1) {
+      velocity.x += wind * simStep;
+      velocity.y += GRAVITY * simStep;
+      position.x += velocity.x * simStep;
+      position.y += velocity.y * simStep;
+
+      if (position.x < -24 || position.x > GAME_WIDTH + 24 || position.y < -40 || position.y > STREET_Y) {
+        break;
+      }
+
+      samplePoints.push(position.clone());
+
+      if (this.terrain.collidesWithCircle(position.x, position.y, 2)) {
+        break;
+      }
+    }
+
+    if (samplePoints.length < 2) {
+      return;
+    }
+
+    const lineColor = playerIndex === 0 ? 0xffcf8c : 0xa7d5ff;
+    const startPoint = samplePoints[0];
+    if (!startPoint) {
+      return;
+    }
+
+    this.aimGuide.lineStyle(2, lineColor, 0.85);
+    this.aimGuide.beginPath();
+    this.aimGuide.moveTo(startPoint.x, startPoint.y);
+
+    for (let i = 1; i < samplePoints.length; i += 1) {
+      const point = samplePoints[i];
+      if (!point) {
+        continue;
+      }
+      this.aimGuide.lineTo(point.x, point.y);
+    }
+    this.aimGuide.strokePath();
+
+    this.aimGuide.fillStyle(lineColor, 0.8);
+    for (let i = 1; i < samplePoints.length; i += 2) {
+      const point = samplePoints[i];
+      if (!point) {
+        continue;
+      }
+      this.aimGuide.fillCircle(point.x, point.y, 2.1);
+    }
+
+    const tail = samplePoints[samplePoints.length - 2];
+    const head = samplePoints[samplePoints.length - 1];
+    if (tail && head) {
+      const direction = new Phaser.Math.Vector2(head.x - tail.x, head.y - tail.y);
+      if (direction.lengthSq() > 0.0001) {
+        direction.normalize();
+        const normal = new Phaser.Math.Vector2(-direction.y, direction.x);
+
+        const arrowLength = 12;
+        const arrowWidth = 4.5;
+        const base = new Phaser.Math.Vector2(head.x - direction.x * arrowLength, head.y - direction.y * arrowLength);
+        const wingA = new Phaser.Math.Vector2(base.x + normal.x * arrowWidth, base.y + normal.y * arrowWidth);
+        const wingB = new Phaser.Math.Vector2(base.x - normal.x * arrowWidth, base.y - normal.y * arrowWidth);
+
+        this.aimGuide.fillStyle(lineColor, 0.92);
+        this.aimGuide.fillTriangle(head.x, head.y, wingA.x, wingA.y, wingB.x, wingB.y);
+      }
+    }
   }
 
   private drawBackdrop(): void {

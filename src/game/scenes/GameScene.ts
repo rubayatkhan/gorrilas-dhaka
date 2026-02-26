@@ -16,6 +16,7 @@ import {
   STREET_Y
 } from '../constants';
 import type { AimState, HudState, PlayerIndex } from '../types';
+import type { MatchSetup } from '../types';
 import { ProjectileSystem } from '../systems/ProjectileSystem';
 import { TerrainSystem } from '../systems/TerrainSystem';
 import { TurnSystem } from '../systems/TurnSystem';
@@ -23,6 +24,11 @@ import { WindSystem } from '../systems/WindSystem';
 
 const ANGLE_SPEED = 56;
 const POWER_SPEED = 280;
+const MATCH_SETUP_REGISTRY_KEY = 'matchSetup';
+const DEFAULT_MATCH_SETUP: MatchSetup = {
+  playerNames: ['Player 1', 'Player 2'],
+  targetScore: 3
+};
 
 export class GameScene extends Phaser.Scene {
   private terrain!: TerrainSystem;
@@ -42,15 +48,21 @@ export class GameScene extends Phaser.Scene {
   private fireKey!: Phaser.Input.Keyboard.Key;
   private resetRoundKey!: Phaser.Input.Keyboard.Key;
   private resetMatchKey!: Phaser.Input.Keyboard.Key;
+  private setupKey!: Phaser.Input.Keyboard.Key;
 
   private roundLocked = false;
+  private matchOver = false;
   private statusMessage = 'Adjust angle/power with arrow keys, SPACE to throw.';
+  private matchSetup: MatchSetup = { ...DEFAULT_MATCH_SETUP };
 
   public constructor() {
     super(SCENE_KEYS.GAME);
   }
 
-  public create(): void {
+  public create(data?: { setup?: MatchSetup }): void {
+    this.matchSetup = this.resolveMatchSetup(data?.setup);
+    this.registry.set(MATCH_SETUP_REGISTRY_KEY, this.matchSetup);
+
     this.drawBackdrop();
     this.drawStreet();
 
@@ -67,9 +79,12 @@ export class GameScene extends Phaser.Scene {
   public update(_: number, delta: number): void {
     const dt = delta / 1000;
 
+    if (!this.projectile.isInFlight()) {
+      this.processActionKeys();
+    }
+
     if (!this.roundLocked && !this.projectile.isInFlight()) {
       this.processAimInput(dt);
-      this.processActionKeys();
     }
 
     if (this.projectile.isInFlight()) {
@@ -93,10 +108,12 @@ export class GameScene extends Phaser.Scene {
     this.fireKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.resetRoundKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.R);
     this.resetMatchKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.M);
+    this.setupKey = keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.N);
   }
 
   private startRound(startingPlayer: PlayerIndex): void {
     this.roundLocked = true;
+    this.matchOver = false;
     this.projectile.clear();
     this.aimGuide.clear();
 
@@ -107,7 +124,7 @@ export class GameScene extends Phaser.Scene {
     this.windSystem.rollNewWind();
     this.setActivePlayerHighlight();
 
-    this.statusMessage = `Round ${this.turnSystem.getRound()} live. Player ${startingPlayer + 1} starts.`;
+    this.statusMessage = `Round ${this.turnSystem.getRound()} live. ${this.getPlayerName(startingPlayer)} starts.`;
     this.emitHud();
 
     this.time.delayedCall(250, () => {
@@ -126,13 +143,13 @@ export class GameScene extends Phaser.Scene {
     const [leftSpawn, rightSpawn] = this.terrain.getSpawnPoints();
 
     const playerA = new PlayerActor(this, 0, 1, {
-      label: 'P1',
+      label: this.getPlayerName(0),
       bodyColor: 0xff7a59,
       accentColor: 0xffdb8a
     });
 
     const playerB = new PlayerActor(this, 1, -1, {
-      label: 'P2',
+      label: this.getPlayerName(1),
       bodyColor: 0x64a4ff,
       accentColor: 0xb4d8ff
     });
@@ -157,12 +174,24 @@ export class GameScene extends Phaser.Scene {
   }
 
   private processActionKeys(): void {
+    if (Phaser.Input.Keyboard.JustDown(this.setupKey)) {
+      this.scene.stop(SCENE_KEYS.UI);
+      this.scene.start(SCENE_KEYS.SETUP);
+      return;
+    }
+
     if (Phaser.Input.Keyboard.JustDown(this.fireKey)) {
+      if (this.roundLocked || this.matchOver) {
+        return;
+      }
       this.fireProjectile();
       return;
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.resetRoundKey)) {
+      if (this.roundLocked || this.matchOver) {
+        return;
+      }
       const current = this.turnSystem.getCurrentPlayer();
       this.statusMessage = 'Round reset by player.';
       this.startRound(current);
@@ -175,6 +204,7 @@ export class GameScene extends Phaser.Scene {
       this.aimByPlayer[0].power = 520;
       this.aimByPlayer[1].angle = 52;
       this.aimByPlayer[1].power = 520;
+      this.matchOver = false;
       this.statusMessage = 'Match reset. Scores cleared.';
       this.startRound(0);
     }
@@ -234,7 +264,7 @@ export class GameScene extends Phaser.Scene {
       this.turnSystem.nextTurn();
       this.windSystem.rollNewWind();
       this.setActivePlayerHighlight();
-      this.statusMessage = `Player ${this.turnSystem.getCurrentPlayer() + 1} turn.`;
+      this.statusMessage = `${this.getPlayerName(this.turnSystem.getCurrentPlayer())} turn.`;
       this.emitHud();
     });
   }
@@ -248,9 +278,20 @@ export class GameScene extends Phaser.Scene {
 
     this.turnSystem.addScore(shooter);
     this.roundLocked = true;
+    const scores = this.turnSystem.getScores();
+    const shooterScore = scores[shooter];
+    const otherPlayer = shooter === 0 ? 1 : 0;
+    const otherScore = scores[otherPlayer];
 
-    this.statusMessage = `Direct hit! Player ${shooter + 1} scores.`;
+    this.statusMessage = `Direct hit! ${this.getPlayerName(shooter)} scores.`;
     this.emitHud();
+
+    if (shooterScore >= this.matchSetup.targetScore) {
+      this.matchOver = true;
+      this.statusMessage = `${this.getPlayerName(shooter)} wins ${shooterScore}-${otherScore}! Press M to replay or N for setup.`;
+      this.emitHud();
+      return;
+    }
 
     this.time.delayedCall(1200, () => {
       this.startRound(targetIndex);
@@ -277,6 +318,9 @@ export class GameScene extends Phaser.Scene {
       round: this.turnSystem.getRound(),
       currentPlayer,
       scores: this.turnSystem.getScores(),
+      playerNames: [this.getPlayerName(0), this.getPlayerName(1)],
+      targetScore: this.matchSetup.targetScore,
+      matchOver: this.matchOver,
       angle: activeAim.angle,
       power: activeAim.power,
       wind: this.windSystem.getWind(),
@@ -481,5 +525,23 @@ export class GameScene extends Phaser.Scene {
       1
     );
     this.add.rectangle(GAME_WIDTH * 0.5, STREET_Y, GAME_WIDTH, 2, 0x7f86a0, 0.45).setDepth(3);
+  }
+
+  private getPlayerName(player: PlayerIndex): string {
+    return this.matchSetup.playerNames[player];
+  }
+
+  private resolveMatchSetup(incoming?: MatchSetup): MatchSetup {
+    const registrySetup = this.registry.get(MATCH_SETUP_REGISTRY_KEY) as MatchSetup | undefined;
+    const source = incoming ?? registrySetup ?? DEFAULT_MATCH_SETUP;
+
+    const p1 = source.playerNames?.[0]?.trim() || DEFAULT_MATCH_SETUP.playerNames[0];
+    const p2 = source.playerNames?.[1]?.trim() || DEFAULT_MATCH_SETUP.playerNames[1];
+    const targetScore = Phaser.Math.Clamp(Math.round(source.targetScore || DEFAULT_MATCH_SETUP.targetScore), 1, 15);
+
+    return {
+      playerNames: [p1, p2],
+      targetScore
+    };
   }
 }

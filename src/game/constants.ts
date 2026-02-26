@@ -20,6 +20,7 @@ export const AIM_MAX_POWER = 860;
 
 export const SCENE_KEYS = {
   BOOT: 'BootScene',
+  SETUP: 'SetupScene',
   GAME: 'GameScene',
   UI: 'UIScene'
 } as const;

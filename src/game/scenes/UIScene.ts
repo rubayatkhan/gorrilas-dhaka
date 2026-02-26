@@ -16,6 +16,8 @@ export class UIScene extends Phaser.Scene {
   private playerTwoTitle!: Phaser.GameObjects.Text;
 
   private windMeter!: Phaser.GameObjects.Graphics;
+  private playerOneControls!: Phaser.GameObjects.Text;
+  private playerTwoControls!: Phaser.GameObjects.Text;
 
   public constructor() {
     super(SCENE_KEYS.UI);
@@ -35,7 +37,7 @@ export class UIScene extends Phaser.Scene {
     const centerPanel = this.add.rectangle(GAME_WIDTH * 0.5, 12, 430, 102, 0x081122, 0.54).setOrigin(0.5, 0).setDepth(100);
     centerPanel.setStrokeStyle(1, 0x7f97c9, 0.45);
 
-    const scorePanel = this.add.rectangle(GAME_WIDTH * 0.5, GAME_HEIGHT - 66, 390, 62, 0x060b17, 0.68).setOrigin(0.5, 0).setDepth(100);
+    const scorePanel = this.add.rectangle(GAME_WIDTH * 0.5, GAME_HEIGHT - 66, 600, 62, 0x060b17, 0.68).setOrigin(0.5, 0).setDepth(100);
     scorePanel.setStrokeStyle(1, 0x9cb3e3, 0.65);
 
     this.playerOneTitle = this.add
@@ -48,7 +50,7 @@ export class UIScene extends Phaser.Scene {
       })
       .setDepth(101);
 
-    this.add
+    this.playerOneControls = this.add
       .text(24, 46, 'Arrow keys: angle + power\nSPACE throw | R reset round', {
         fontFamily: 'Trebuchet MS',
         fontSize: '14px',
@@ -71,7 +73,7 @@ export class UIScene extends Phaser.Scene {
       .setOrigin(1, 0)
       .setDepth(101);
 
-    this.add
+    this.playerTwoControls = this.add
       .text(GAME_WIDTH - 24, 46, 'Arrow keys: angle + power\nSPACE throw | M reset match', {
         fontFamily: 'Trebuchet MS',
         fontSize: '14px',
@@ -120,7 +122,7 @@ export class UIScene extends Phaser.Scene {
     this.scoreText = this.add
       .text(GAME_WIDTH * 0.5, GAME_HEIGHT - 57, 'P1 0 : 0 P2', {
         fontFamily: 'Trebuchet MS',
-        fontSize: '34px',
+        fontSize: '30px',
         color: '#fdf5e1',
         stroke: '#050811',
         strokeThickness: 5
@@ -138,7 +140,8 @@ export class UIScene extends Phaser.Scene {
   }
 
   private onHudUpdate(hud: HudState): void {
-    this.roundText.setText(`Round ${hud.round}  |  Player ${hud.currentPlayer + 1} turn`);
+    const activeName = hud.playerNames[hud.currentPlayer];
+    this.roundText.setText(`Round ${hud.round}  |  ${activeName} turn  |  First to ${hud.targetScore}`);
 
     const windDirection = hud.wind >= 0 ? '->' : '<-';
     this.detailText.setText(
@@ -146,7 +149,13 @@ export class UIScene extends Phaser.Scene {
     );
 
     this.statusText.setText(hud.status);
-    this.scoreText.setText(`P1 ${hud.scores[0]}  :  ${hud.scores[1]} P2`);
+    const leftName = this.compactName(hud.playerNames[0], 12);
+    const rightName = this.compactName(hud.playerNames[1], 12);
+    this.scoreText.setText(`${leftName} ${hud.scores[0]}  :  ${hud.scores[1]} ${rightName}`);
+    this.playerOneTitle.setText(hud.playerNames[0].toUpperCase());
+    this.playerTwoTitle.setText(hud.playerNames[1].toUpperCase());
+    this.playerOneControls.setText('Arrow keys: angle + power\nSPACE throw | R reset round');
+    this.playerTwoControls.setText('Arrow keys: angle + power\nSPACE throw | M reset | N new setup');
 
     this.updateTurnHighlight(hud.currentPlayer);
     this.redrawWindMeter(hud.wind);
@@ -193,5 +202,13 @@ export class UIScene extends Phaser.Scene {
 
     this.windMeter.lineStyle(1, 0xe4f0ff, 0.8);
     this.windMeter.lineBetween(center, y - 2, center, y + meterHeight + 2);
+  }
+
+  private compactName(name: string, max: number): string {
+    const trimmed = name.trim();
+    if (trimmed.length <= max) {
+      return trimmed;
+    }
+    return `${trimmed.slice(0, max - 1)}.`;
   }
 }

@@ -7,10 +7,18 @@ export interface AimState {
   power: number;
 }
 
+export interface MatchSetup {
+  playerNames: [string, string];
+  targetScore: number;
+}
+
 export interface HudState {
   round: number;
   currentPlayer: PlayerIndex;
   scores: [number, number];
+  playerNames: [string, string];
+  targetScore: number;
+  matchOver: boolean;
   angle: number;
   power: number;
   wind: number;
